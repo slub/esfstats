@@ -31,7 +31,8 @@ if __name__ == "__main__":
     parser.add_argument('-index',type=str,help='ElasticSearch Search Index to use')
     parser.add_argument('-type',type=str,help='ElasticSearch Search Index Type to use')
     args=parser.parse_args()
-    
+    if args.host is None:
+        args.host='localhost'
     if args.port is None:
         args.port=9200
     es=Elasticsearch([{'host':args.host}],port=args.port)  
