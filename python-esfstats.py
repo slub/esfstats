@@ -5,7 +5,23 @@ from elasticsearch import Elasticsearch
 import json
 from pprint import pprint
 import argparse
+import sys
 
+stats = {}
+def traverse(obj,path):
+    if isinstance(obj, dict):
+        for key, value in obj.iteritems():
+            path=path+" "+key
+            traverse(value,path)
+    elif isinstance(obj, list):
+        for value in obj:
+            traverse(value,path)
+    else:
+        if path not in stats:
+            stats[path]=0
+        if field in stats:
+            stats[path]+=1
+        
 if __name__ == "__main__":
     parser=argparse.ArgumentParser(description='return field statistics of an ElasticSearch Search Index')
     parser.add_argument('-host',type=str,help='hostname or IP-Address of the ElasticSearch-node to use, default is localhost.')
@@ -28,19 +44,17 @@ if __name__ == "__main__":
     scroll_size = page['hits']['total']
     
     # Start scrolling
-    stats = {}
+    hitcount=0
     while (scroll_size > 0):
       pages = es.scroll(scroll_id = sid, scroll='2m')
       sid = pages['_scroll_id']
       scroll_size = len(pages['hits']['hits'])
-      hitcount=0
       for hits in pages['hits']['hits']:
         hitcount+=1
         for field in hits['_source']:
-            if field not in stats:
-                stats[field]=0
-            if field in stats:
-                stats[field]+=1
+            traverse(hits['_source'][field],field)
+        print ""
+      break
     print '{:50s}|{:14s}|{:14s}'.format("field name","exist-count","notexistcount")
     print "--------------------------------------------------|--------------|-------------"
     for key, value in stats.iteritems():
