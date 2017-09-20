@@ -53,7 +53,6 @@ if __name__ == "__main__":
         hitcount+=1
         for field in hits['_source']:
             traverse(hits['_source'][field],field)
-        print ""
     print '{:50s}|{:14s}|{:14s}'.format("field name","exist-count","notexistcount")
     print "--------------------------------------------------|--------------|-------------"
     for key, value in stats.iteritems():
