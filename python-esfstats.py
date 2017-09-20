@@ -7,11 +7,13 @@ from pprint import pprint
 import argparse
 import sys
 
-stats = {}
+stats = dict()
+
 def traverse(obj,path):
+    global stats
     if isinstance(obj, dict):
         for key, value in obj.iteritems():
-            path=path+" "+key
+            path=path+"_"+key
             traverse(value,path)
     elif isinstance(obj, list):
         for value in obj:
@@ -19,7 +21,7 @@ def traverse(obj,path):
     else:
         if path not in stats:
             stats[path]=0
-        if field in stats:
+        if path in stats:
             stats[path]+=1
         
 if __name__ == "__main__":
