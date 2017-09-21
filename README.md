@@ -1,6 +1,6 @@
 # esfstats-python - elasticsearch fields statistics
 
-esfstats-python is a Python program wrapped in a shell script that. It extracts some statistics re. field coverage in the documents.
+esfstats-python is a Python program that extracts some statistics re. field coverage in the documents.
 
 You need to install elasticsearch python lib.
 
