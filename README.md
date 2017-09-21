@@ -1,8 +1,8 @@
 # esfstats-python - elasticsearch fields statistics
 
-esfstats-python is a Python program that extracts some statistics re. field coverage in the documents.
+esfstats-python is a Python program that extracts some statistics re. field coverage in an ElasticSearch Index.
 
-You need to install elasticsearch python lib.
+you need to install elasticsearch-python
 
 ## Usage
 
@@ -13,6 +13,6 @@ esfstats
         -index  index name
         -type   document type
         -help   print this help
-	-marc	ignore Marc identifier field if you are analysing an index of marc records
+        -marc   ignore Marc identifier field if you are analysing an index of marc records
 ```
 

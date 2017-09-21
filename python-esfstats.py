@@ -66,4 +66,4 @@ if __name__ == "__main__":
     print "--------------------------------------------------|--------------|-------------"
     sortedstats=collections.OrderedDict(sorted(stats.items()))
     for key, value in sortedstats.iteritems():
-        print '{:50s}|{:14s}|{:14s}'.format(str(key),str(value),str(hitcount-int(value)))
+        print '{:50s}|{:9s} {:3s}%|{:14s}'.format(str(key),str(value),str(int((float(value)/float(hitcount))*100)),str(hitcount-int(value)))
