@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 from datetime import datetime
 from elasticsearch import Elasticsearch
+import collections
 import json
 from pprint import pprint
 import argparse
@@ -19,6 +20,10 @@ def traverse(obj,path):
         for value in obj:
             traverse(value,path)
     else:
+        if args.marc==True:
+            if path[:1]!='_':
+                marcpath=path[:3]+" "+path[-1:]
+                path = marcpath
         if path not in stats:
             stats[path]=0
         if path in stats:
@@ -30,6 +35,7 @@ if __name__ == "__main__":
     parser.add_argument('-port',type=int,help='Port of the ElasticSearch-node to use, default is 9200.')
     parser.add_argument('-index',type=str,help='ElasticSearch Search Index to use')
     parser.add_argument('-type',type=str,help='ElasticSearch Search Index Type to use')
+    parser.add_argument('-marc',action="store_true",help='Ignore Marc Indicator')
     args=parser.parse_args()
     if args.host is None:
         args.host='localhost'
@@ -58,5 +64,6 @@ if __name__ == "__main__":
             traverse(hits['_source'][field],field)
     print '{:50s}|{:14s}|{:14s}'.format("field name","exist-count","notexistcount")
     print "--------------------------------------------------|--------------|-------------"
-    for key, value in stats.iteritems():
+    sortedstats=collections.OrderedDict(sorted(stats.items()))
+    for key, value in sortedstats.iteritems():
         print '{:50s}|{:14s}|{:14s}'.format(str(key),str(value),str(hitcount-int(value)))
