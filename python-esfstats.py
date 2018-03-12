@@ -80,7 +80,7 @@ if __name__ == "__main__":
         )['hits']['total']
 
     print(
-        '{:11s}|{:6s}|{:11s}|{:3s}|{:11s}|{:11s}|{:40s}'.format("existing", "%", "notexisting", "!%", "occurrence",
+        '{:11s}|{:6s}|{:11s}|{:6s}|{:11s}|{:11s}|{:40s}'.format("existing", "%", "notexisting", "!%", "occurrence",
                                                                 "unique", "field name"))
     print("-----------|------|-----------|------|-----------|-----------|----------------------------------------")
     sortedstats = collections.OrderedDict(sorted(stats.items()))
@@ -103,7 +103,7 @@ if __name__ == "__main__":
         unique = str(fieldcardinality)
         fieldname = keyencoded.decode('utf-8').replace(".", " > ")
 
-        print('{:>11s}|{:>3.2f}|{:>11s}|{:>3.2f}|{:>11s}|{:>11s}| {:40s}'.format(existing,
+        print('{:>11s}|{:>6.2f}|{:>11s}|{:>6.2f}|{:>11s}|{:>11s}| {:40s}'.format(existing,
                                                                                  existingpercentage,
                                                                                  notexisting,
                                                                                  notexistingpercentage,
