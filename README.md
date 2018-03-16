@@ -1,11 +1,11 @@
-# python-esfstats - elasticsearch fields statistics
+# esfstats - elasticsearch fields statistics
 
-python-esfstats is a Python3 program that extracts some statistics regarding field coverage from an elasticsearch index.
+esfstats is a Python3 program that extracts some statistics regarding field coverage from an elasticsearch index.
 
 ## Usage
 
 ```
-python-esfstats
+esfstats
         -h, --help    show this help message and exit
         -host HOST    hostname or IP address of the elasticsearch instance to use, default is localhost.
         -port PORT    port of the elasticsearch instance to use, default is 9200.
@@ -16,7 +16,7 @@ python-esfstats
 
 * example:
     ```
-    python-esfstats -host [HOSTNAME OF YOUR ELASTICSEARCH INSTANCE] -index [YOUR ELASTICSEARCH INDEX] -type [DOCUMENT TYPE OF THE ELEASTICSEARCH INDEX] > [OUTPUT STATISTICS DOCUMENT]
+    esfstats -host [HOSTNAME OF YOUR ELASTICSEARCH INSTANCE] -index [YOUR ELASTICSEARCH INDEX] -type [DOCUMENT TYPE OF THE ELEASTICSEARCH INDEX] > [OUTPUT STATISTICS DOCUMENT]
     ```
 
 ## Requirements
@@ -31,9 +31,9 @@ apt-get install python-elasticsearch
 ## Run
 
 * install elasticsearch-py
-* clone this git repo or just download the python_esfstats.py file
-* run ./python_esfstats.py
-* for a hackish way to use python-esfstats system-wide, copy to /usr/local/bin
+* clone this git repo or just download the esfstats.py file
+* run ./esfstats.py
+* for a hackish way to use esfstats system-wide, copy to /usr/local/bin
 
 ### Install system-wide via pip
 
@@ -41,7 +41,7 @@ apt-get install python-elasticsearch
     ```
     sudo -H pip3 install --upgrade [ABSOLUTE PATH TO YOUR LOCAL GIT REPOSITORY OF PYTHON-ESFSTATS]
     ```
-    (which provides you ```python-esfstats``` as a system-wide commandline command)
+    (which provides you ```esfstats``` as a system-wide commandline command)
 
 ## Description
 
