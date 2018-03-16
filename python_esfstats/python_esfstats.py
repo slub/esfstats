@@ -5,8 +5,6 @@ import collections
 
 from elasticsearch import Elasticsearch
 
-stats = dict()
-
 
 def traverse(dict_or_list, fieldpath=None):
     if fieldpath is None:
@@ -21,18 +19,18 @@ def traverse(dict_or_list, fieldpath=None):
         yield fieldpath + [k], v
         if isinstance(v, (dict, list)):
             if "fields" not in v and "type" not in v:
-                for k, v in traverse(v, fieldpath + [k]):
-                    yield k, v
+                for k1, v1 in traverse(v, fieldpath + [k]):
+                    yield k1, v1
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='return field statistics of an ElasticSearch Search Index')
+def run():
+    parser = argparse.ArgumentParser(description='return field statistics of an elasticsearch index')
     parser.add_argument('-host', type=str,
-                        help='hostname or IP-Address of the ElasticSearch-node to use, default is localhost.')
-    parser.add_argument('-port', type=int, help='Port of the ElasticSearch-node to use, default is 9200.')
-    parser.add_argument('-index', type=str, help='ElasticSearch Search Index to use')
-    parser.add_argument('-type', type=str, help='ElasticSearch Search Index Type to use')
-    parser.add_argument('-marc', action="store_true", help='Ignore Marc Indicator')
+                        help='hostname or IP address of the elasticsearch instance to use, default is localhost.')
+    parser.add_argument('-port', type=int, help='port of the elasticsearch instance to use, default is 9200.')
+    parser.add_argument('-index', type=str, help='elasticsearch index to use')
+    parser.add_argument('-type', type=str, help='elasticsearch index type to use')
+    parser.add_argument('-marc', action="store_true", help='ignore MARC indicator')
     args = parser.parse_args()
     if args.host is None:
         args.host = 'localhost'
@@ -41,6 +39,7 @@ if __name__ == "__main__":
 
     es = Elasticsearch([{'host': args.host}], port=args.port)
     mapping = es.indices.get_mapping(index=args.index, doc_type=args.type)[args.index]["mappings"][args.type]
+    stats = dict()
     for path, node in traverse(mapping):
         fullpath = str()
         for field in path:
@@ -80,9 +79,9 @@ if __name__ == "__main__":
         )['hits']['total']
 
     print(
-        '{:11s}|{:6s}|{:11s}|{:6s}|{:11s}|{:11s}|{:40s}'.format("existing", "%", "notexisting", "!%", "occurrence",
-                                                                "unique", "field name"))
-    print("-----------|------|-----------|------|-----------|-----------|----------------------------------------")
+        '{:11s}|{:6s}|{:11s}|{:6s}|{:11s}|{:15s}|{:40s}'.format("existing", "%", "notexisting", "!%", "occurrence",
+                                                                "unique (appr.)", "field name"))
+    print("-----------|------|-----------|------|-----------|---------------|----------------------------------------")
     sortedstats = collections.OrderedDict(sorted(stats.items()))
 
     for key, value in sortedstats.items():
@@ -103,10 +102,14 @@ if __name__ == "__main__":
         unique = str(fieldcardinality)
         fieldname = keyencoded.decode('utf-8').replace(".", " > ")
 
-        print('{:>11s}|{:>6.2f}|{:>11s}|{:>6.2f}|{:>11s}|{:>11s}| {:40s}'.format(existing,
+        print('{:>11s}|{:>6.2f}|{:>11s}|{:>6.2f}|{:>11s}|{:>15s}| {:40s}'.format(existing,
                                                                                  existingpercentage,
                                                                                  notexisting,
                                                                                  notexistingpercentage,
                                                                                  occurrence,
                                                                                  unique,
                                                                                  '"' + fieldname + '"'))
+
+
+if __name__ == "__main__":
+    run()
