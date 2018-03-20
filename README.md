@@ -1,17 +1,22 @@
 # esfstats - elasticsearch fields statistics
 
-esfstats is a Python3 program that extracts some statistics regarding field coverage from an elasticsearch index.
+esfstats is a commandline command (Python3 program) that extracts some statistics regarding field coverage from an elasticsearch index.
 
 ## Usage
 
 ```
 esfstats
-        -h, --help    show this help message and exit
-        -host HOST    hostname or IP address of the elasticsearch instance to use, default is localhost.
-        -port PORT    port of the elasticsearch instance to use, default is 9200.
-        -index INDEX  elasticsearch index to use
-        -type TYPE    elasticsearch index type to use
-        -marc         ignore MARC indicator
+        required arguments:
+          -index INDEX  elasticsearch index to use (default: None)
+          -type TYPE    elasticsearch index (document) type to use (default: None)
+
+        optional arguments:
+          -h, --help    show this help message and exit
+          -host HOST    hostname or IP address of the elasticsearch instance to use (default: localhost)
+          -port PORT    port of the elasticsearch instance to use (default: 9200)
+          -marc         ignore MARC indicator (default: False)
+          -csv-output   prints the output as pure CSV data (all values are quoted)
+                        (default: False)
 ```
 
 * example:
@@ -39,7 +44,7 @@ apt-get install python-elasticsearch
 
 * via pip:
     ```
-    sudo -H pip3 install --upgrade [ABSOLUTE PATH TO YOUR LOCAL GIT REPOSITORY OF PYTHON-ESFSTATS]
+    sudo -H pip3 install --upgrade [ABSOLUTE PATH TO YOUR LOCAL GIT REPOSITORY OF ESFSTATS]
     ```
     (which provides you ```esfstats``` as a system-wide commandline command)
 

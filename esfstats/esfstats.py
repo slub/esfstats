@@ -116,9 +116,9 @@ def run():
     required_arguments.add_argument('-type', type=str, help='elasticsearch index (document) type to use', required=True)
 
     optional_arguments.add_argument('-host', type=str, default='localhost',
-                                    help='hostname or IP address of the elasticsearch instance to use, default is localhost.')
+                                    help='hostname or IP address of the elasticsearch instance to use')
     optional_arguments.add_argument('-port', type=int, default=9200,
-                                    help='port of the elasticsearch instance to use, default is 9200.')
+                                    help='port of the elasticsearch instance to use')
     optional_arguments.add_argument('-marc', action="store_true", help='ignore MARC indicator')
     optional_arguments.add_argument('-csv-output', action="store_true",
                                     help='prints the output as pure CSV data (all values are quoted)',
