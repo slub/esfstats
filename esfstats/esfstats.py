@@ -2,8 +2,28 @@
 # -*- coding: utf-8 -*-
 import argparse
 import collections
+import csv
+import sys
 
 from elasticsearch import Elasticsearch
+
+EXISTING = 'existing'
+EXISTING_PERCENTAGE = 'existing_percentage'
+NOTEXISTING = 'notexisting'
+NOTEXISTING_PERCENTAGE = 'notexisting_percentage'
+OCCURRENCE = 'occurrence'
+UNIQUE_APPR = 'unique_appr'
+FIELD_NAME = 'field_name'
+
+
+def get_header():
+    return [EXISTING,
+            EXISTING_PERCENTAGE,
+            NOTEXISTING,
+            NOTEXISTING_PERCENTAGE,
+            OCCURRENCE,
+            UNIQUE_APPR,
+            FIELD_NAME]
 
 
 def traverse(dict_or_list, fieldpath=None):
@@ -23,19 +43,90 @@ def traverse(dict_or_list, fieldpath=None):
                     yield k1, v1
 
 
+def generate_field_statistics(statsmap, hitcount):
+    field_statistics = []
+
+    for key, value in statsmap:
+        fieldexistingcount = value[0]
+        fieldcardinality = value[1]
+        fieldvaluecount = value[2]
+
+        keyreplaced = key.replace(u'\ufeff', '')
+        keyencoded = keyreplaced.encode('utf-8')
+        fieldexistingcountreplaced = str(fieldexistingcount).replace(u'\ufeff', '')
+        fieldexistingcountencoded = fieldexistingcountreplaced.encode('utf-8')
+
+        existing = fieldexistingcountencoded.decode('utf-8')
+        existingpercentage = (float(fieldexistingcount) / float(hitcount)) * 100
+        notexisting = str(hitcount - int(fieldexistingcount))
+        notexistingpercentage = (float(notexisting) / float(hitcount)) * 100
+        occurrence = str(fieldvaluecount)
+        unique = str(fieldcardinality)
+        fieldname = keyencoded.decode('utf-8').replace(".", " > ")
+
+        field_statistic = {EXISTING: existing,
+                           EXISTING_PERCENTAGE: "{0:.2f}".format(existingpercentage),
+                           NOTEXISTING: notexisting,
+                           NOTEXISTING_PERCENTAGE: "{0:.2f}".format(notexistingpercentage),
+                           OCCURRENCE: occurrence,
+                           UNIQUE_APPR: unique,
+                           FIELD_NAME: fieldname}
+
+        field_statistics.append(field_statistic)
+
+    return field_statistics
+
+
+def simple_text_print(field_statistics):
+    print('{:11s}|{:6s}|{:11s}|{:6s}|{:11s}|{:15s}|{:40s}'.format("existing", "%", "notexisting", "!%", "occurrence",
+                                                                  "unique (appr.)", "field name"))
+    print("-----------|------|-----------|------|-----------|---------------|----------------------------------------")
+
+    for field_statistic in field_statistics:
+        print('{:>11s}|{:>6.2f}|{:>11s}|{:>6.2f}|{:>11s}|{:>15s}| {:40s}'.format(field_statistic[EXISTING],
+                                                                                 float(field_statistic[
+                                                                                           EXISTING_PERCENTAGE]),
+                                                                                 field_statistic[NOTEXISTING],
+                                                                                 float(field_statistic[
+                                                                                           NOTEXISTING_PERCENTAGE]),
+                                                                                 field_statistic[OCCURRENCE],
+                                                                                 field_statistic[UNIQUE_APPR],
+                                                                                 '"' + field_statistic[
+                                                                                     FIELD_NAME] + '"'))
+
+
+def csv_print(field_statistics):
+    header = get_header()
+    with sys.stdout as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=header, dialect='unix')
+
+        writer.writeheader()
+        for field_statistic in field_statistics:
+            writer.writerow(field_statistic)
+
+
 def run():
-    parser = argparse.ArgumentParser(description='return field statistics of an elasticsearch index')
-    parser.add_argument('-host', type=str,
-                        help='hostname or IP address of the elasticsearch instance to use, default is localhost.')
-    parser.add_argument('-port', type=int, help='port of the elasticsearch instance to use, default is 9200.')
-    parser.add_argument('-index', type=str, help='elasticsearch index to use')
-    parser.add_argument('-type', type=str, help='elasticsearch index type to use')
-    parser.add_argument('-marc', action="store_true", help='ignore MARC indicator')
+    parser = argparse.ArgumentParser(prog='esfstats', description='return field statistics of an elasticsearch index',
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+    optional_arguments = parser._action_groups.pop()
+
+    required_arguments = parser.add_argument_group('required arguments')
+    required_arguments.add_argument('-index', type=str, help='elasticsearch index to use', required=True)
+    required_arguments.add_argument('-type', type=str, help='elasticsearch index (document) type to use', required=True)
+
+    optional_arguments.add_argument('-host', type=str, default='localhost',
+                                    help='hostname or IP address of the elasticsearch instance to use')
+    optional_arguments.add_argument('-port', type=int, default=9200,
+                                    help='port of the elasticsearch instance to use')
+    optional_arguments.add_argument('-marc', action="store_true", help='ignore MARC indicator')
+    optional_arguments.add_argument('-csv-output', action="store_true",
+                                    help='prints the output as pure CSV data (all values are quoted)',
+                                    dest='csv_output')
+
+    parser._action_groups.append(optional_arguments)
+
     args = parser.parse_args()
-    if args.host is None:
-        args.host = 'localhost'
-    if args.port is None:
-        args.port = 9200
 
     es = Elasticsearch([{'host': args.host}], port=args.port)
     mapping = es.indices.get_mapping(index=args.index, doc_type=args.type)[args.index]["mappings"][args.type]
@@ -71,44 +162,21 @@ def run():
             fieldcardinalityresponse['aggregations']['type_count']['value'],
             fieldvaluecountresponse['aggregations']['types_count']['value']
         )
-        hitcount = es.search(
-            index=args.index,
-            doc_type=args.type,
-            body={},
-            size=0
-        )['hits']['total']
 
-    print(
-        '{:11s}|{:6s}|{:11s}|{:6s}|{:11s}|{:15s}|{:40s}'.format("existing", "%", "notexisting", "!%", "occurrence",
-                                                                "unique (appr.)", "field name"))
-    print("-----------|------|-----------|------|-----------|---------------|----------------------------------------")
+    hitcount = es.search(
+        index=args.index,
+        doc_type=args.type,
+        body={},
+        size=0
+    )['hits']['total']
+
     sortedstats = collections.OrderedDict(sorted(stats.items()))
+    field_statistics = generate_field_statistics(sortedstats.items(), hitcount)
 
-    for key, value in sortedstats.items():
-        fieldexistingcount = value[0]
-        fieldcardinality = value[1]
-        fieldvaluecount = value[2]
-
-        keyreplaced = key.replace(u'\ufeff', '')
-        keyencoded = keyreplaced.encode('utf-8')
-        fieldexistingcountreplaced = str(fieldexistingcount).replace(u'\ufeff', '')
-        fieldexistingcountencoded = fieldexistingcountreplaced.encode('utf-8')
-
-        existing = fieldexistingcountencoded.decode('utf-8')
-        existingpercentage = (float(fieldexistingcount) / float(hitcount)) * 100
-        notexisting = str(hitcount - int(fieldexistingcount))
-        notexistingpercentage = (float(notexisting) / float(hitcount)) * 100
-        occurrence = str(fieldvaluecount)
-        unique = str(fieldcardinality)
-        fieldname = keyencoded.decode('utf-8').replace(".", " > ")
-
-        print('{:>11s}|{:>6.2f}|{:>11s}|{:>6.2f}|{:>11s}|{:>15s}| {:40s}'.format(existing,
-                                                                                 existingpercentage,
-                                                                                 notexisting,
-                                                                                 notexistingpercentage,
-                                                                                 occurrence,
-                                                                                 unique,
-                                                                                 '"' + fieldname + '"'))
+    if not args.csv_output:
+        simple_text_print(field_statistics)
+    else:
+        csv_print(field_statistics)
 
 
 if __name__ == "__main__":
