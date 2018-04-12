@@ -14,7 +14,7 @@ esfstats
           -h, --help    show this help message and exit
           -host HOST    hostname or IP address of the elasticsearch instance to use (default: localhost)
           -port PORT    port of the elasticsearch instance to use (default: 9200)
-          -marc         ignore MARC indicator (default: False)
+          -marc         ignore MARC indicator, i.e., combine only MARC tag + MARC code (valid/applicable for input generated with help of xbib/marc (https://github.com/xbib/marc) or input MARC JSON records that follow this structure) (default: False)
           -csv-output   prints the output as pure CSV data (all values are quoted)
                         (default: False)
 ```
@@ -23,6 +23,10 @@ esfstats
     ```
     esfstats -host [HOSTNAME OF YOUR ELASTICSEARCH INSTANCE] -index [YOUR ELASTICSEARCH INDEX] -type [DOCUMENT TYPE OF THE ELEASTICSEARCH INDEX] > [OUTPUT STATISTICS DOCUMENT]
     ```
+
+### Note
+
+When utilising this commandline command with argument '-marc' the input JSON records need to be generated with help of [xbib/marc](https://github.com/xbib/marc) (e.g. via [marc2jsonl](https://github.com/slub/marc2jsonl)) or they need to follow at least this structure (otherwise the result will lead to unexpected behaviour).
 
 ## Requirements
 
