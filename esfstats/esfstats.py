@@ -43,6 +43,16 @@ def traverse(dict_or_list, fieldpath=None):
                     yield k1, v1
 
 
+def is_marc_tag(s):
+    try:
+        n = int(s)
+        if n > 0:
+            return True
+        return False
+    except ValueError:
+        return False
+
+
 def generate_field_statistics(statsmap, hitcount):
     field_statistics = []
 
@@ -129,7 +139,7 @@ def run():
                                     help='hostname or IP address of the elasticsearch instance to use')
     optional_arguments.add_argument('-port', type=int, default=9200,
                                     help='port of the elasticsearch instance to use')
-    optional_arguments.add_argument('-marc', action="store_true", help='ignore MARC indicator')
+    optional_arguments.add_argument('-marc', action="store_true", help='ignore MARC indicator, i.e., combine only MARC tag + MARC code (valid/applicable for input generated with help of xbib/marc (https://github.com/xbib/marc) or input MARC JSON records that follow this structure)')
     optional_arguments.add_argument('-csv-output', action="store_true",
                                     help='prints the output as pure CSV data (all values are quoted)',
                                     dest='csv_output')
@@ -156,36 +166,61 @@ def run():
     es = Elasticsearch([{'host': args.host}], port=args.port)
     mapping = es.indices.get_mapping(index=args.index, doc_type=args.type)[args.index]["mappings"][args.type]
     stats = dict()
-    for path, node in traverse(mapping):
-        fullpath = str()
-        for field in path:
-            fullpath = fullpath + "." + field
-        fullpath = fullpath[1:]
-        if args.marc:
-            fullpath = fullpath[:3] + ".*." + fullpath[-1:]
+    processed_paths = []
+    path_list = [path_tuple[0] for path_tuple in traverse(mapping)]
+    for path in path_list:
+        fullpath = ".".join(path)
+        is_marc = False
+        marc_tag = fullpath[:3]
+        marc_code = None
+        if args.marc and is_marc_tag(marc_tag):
+            if len(fullpath) > 7:
+                marc_code = fullpath[-1:]
+                fullpath = marc_tag + ".*." + marc_code
+                is_marc = True
+            else:
+                # only analyse MARC tag + MARC code combinations (i.e. no upper paths) when '-marc' option is set
+                continue
+        if fullpath in processed_paths:
+            # process path only once
+            continue
+        processed_paths.append(fullpath)
         fieldexistingresponse = es.search(
             index=args.index,
             doc_type=args.type,
             body={"query": {"bool": {"must": [{"exists": {"field": fullpath}}]}}},
             size=0
         )
-        fullpathkeyword = fullpath + ".keyword"
+        if not is_marc:
+            fullpathkeyword = fullpath + ".keyword"
+            fieldcardinalityrequestbody = {"aggs": {"type_count": {"cardinality": {"field": fullpathkeyword, "precision_threshold": 40000}}}}
+            fieldvaluecountrequestbody = {"aggs": {"types_count": {"value_count": {"field": fullpathkeyword}}}}
+        else:
+            script = "def values = new ArrayList(); for(def marcfield : params._source[params.marc_tag]) { if(marcfield instanceof String) { values.add(params.marc_code); } if(marcfield instanceof HashMap) { for(def marcfieldinds : marcfield.values()) { for(def marcfieldind : marcfieldinds) { if(marcfieldind.containsKey(params.marc_code)) { values.add(marcfieldind[params.marc_code]); } } } } } return values;"
+            fieldcardinalityrequestbody = {"aggs": {"marc_field_cardinality": {"filter": {"bool": {"must": {"exists": {"field": fullpath}}}}, "aggs": {"type_count": {"cardinality": {"script": {"source": script, "params": {"marc_tag": marc_tag, "marc_code": marc_code}, "lang": "painless"},"precision_threshold": 40000}}}}}}
+            fieldvaluecountrequestbody = {"aggs": {"marc_field_value_count": {"filter": {"bool": {"must": {"exists": {"field": fullpath}}}}, "aggs": {"types_count": {"value_count": {"script": {"source": script, "params": {"marc_tag": marc_tag, "marc_code": marc_code}, "lang": "painless"}}}}}}}
         fieldcardinalityresponse = es.search(
             index=args.index,
             doc_type=args.type,
-            body={"aggs": {"type_count": {"cardinality": {"field": fullpathkeyword, "precision_threshold": 40000}}}},
+            body=fieldcardinalityrequestbody,
             size=0
         )
         fieldvaluecountresponse = es.search(
             index=args.index,
             doc_type=args.type,
-            body={"aggs": {"types_count": {"value_count": {"field": fullpathkeyword}}}},
+            body=fieldvaluecountrequestbody,
             size=0
         )
+        if not is_marc:
+            fieldcardinality = fieldcardinalityresponse['aggregations']['type_count']['value']
+            fieldvaluecount = fieldvaluecountresponse['aggregations']['types_count']['value']
+        else:
+            fieldcardinality = fieldcardinalityresponse['aggregations']['marc_field_cardinality']['type_count']['value']
+            fieldvaluecount = fieldvaluecountresponse['aggregations']['marc_field_value_count']['types_count']['value']
         stats[fullpath] = (
             fieldexistingresponse['hits']['total'],
-            fieldcardinalityresponse['aggregations']['type_count']['value'],
-            fieldvaluecountresponse['aggregations']['types_count']['value']
+            fieldcardinality,
+            fieldvaluecount
         )
 
     hitcount = es.search(
