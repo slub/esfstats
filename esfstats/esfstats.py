@@ -94,7 +94,6 @@ def simple_text_print(field_statistics):
                                                                                  '"' + field_statistic[
                                                                                      FIELD_NAME] + '"'))
 
-
 def csv_print(field_statistics):
     header = get_header()
     with sys.stdout as csvfile:
@@ -104,6 +103,12 @@ def csv_print(field_statistics):
         for field_statistic in field_statistics:
             writer.writerow(field_statistic)
 
+def isint(num):
+    try: 
+        int(num)
+        return True
+    except:
+        return False
 
 def run():
     parser = argparse.ArgumentParser(prog='esfstats', description='return field statistics of an elasticsearch index',
@@ -112,8 +117,13 @@ def run():
     optional_arguments = parser._action_groups.pop()
 
     required_arguments = parser.add_argument_group('required arguments')
-    required_arguments.add_argument('-index', type=str, help='elasticsearch index to use', required=True)
-    required_arguments.add_argument('-type', type=str, help='elasticsearch index (document) type to use', required=True)
+    required_arguments.add_argument('-index', type=str, help='elasticsearch index to use')
+    required_arguments.add_argument('-type', type=str, help='elasticsearch index (document) type to use')
+    
+    
+    required_arguments_or = parser.add_argument_group('or use: arguments')
+    required_arguments_or.add_argument('-server',type=str,
+                                    help="use http://host:port/index/type/id?pretty. overwrites host/port/index/id/pretty")
 
     optional_arguments.add_argument('-host', type=str, default='localhost',
                                     help='hostname or IP address of the elasticsearch instance to use')
@@ -127,6 +137,21 @@ def run():
     parser._action_groups.append(optional_arguments)
 
     args = parser.parse_args()
+    
+    if args.server:
+        slashsplit=args.server.split("/")
+        args.host=slashsplit[2].rsplit(":")[0]
+        if isint(args.server.split(":")[2].rsplit("/")[0]):
+            args.port=args.server.split(":")[2].split("/")[0]
+        args.index=args.server.split("/")[3]
+        if len(slashsplit)>4:
+            args.type=slashsplit[4]
+        if len(slashsplit)>5:
+            if "?pretty" in args.server:
+                args.pretty=True
+                args.id=slashsplit[5].rsplit("?")[0]
+            else:
+                args.id=slashsplit[5]
 
     es = Elasticsearch([{'host': args.host}], port=args.port)
     mapping = es.indices.get_mapping(index=args.index, doc_type=args.type)[args.index]["mappings"][args.type]
