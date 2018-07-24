@@ -165,7 +165,8 @@ def run():
             else:
                 args.id=slashsplit[5]
 
-    es = Elasticsearch([{'host': args.host}], port=args.port)
+    es = Elasticsearch([{'host': args.host}], port=args.port,
+            timeout=args.timeout)
     mapping = es.indices.get_mapping(index=args.index, doc_type=args.type)[args.index]["mappings"][args.type]
     stats = dict()
     processed_paths = []
@@ -191,9 +192,7 @@ def run():
             index=args.index,
             doc_type=args.type,
             body={"query": {"bool": {"must": [{"exists": {"field": fullpath}}]}}},
-            size=0,
-            timeout=str(args.timeout)+"s",
-            request_timeout=args.timeout
+            size=0
         )
         if not is_marc:
             fullpathkeyword = fullpath + ".keyword"
@@ -207,17 +206,13 @@ def run():
             index=args.index,
             doc_type=args.type,
             body=fieldcardinalityrequestbody,
-            size=0,
-            timeout=str(args.timeout)+"s",
-            request_timeout=args.timeout
+            size=0
         )
         fieldvaluecountresponse = es.search(
             index=args.index,
             doc_type=args.type,
             body=fieldvaluecountrequestbody,
-            size=0,
-            timeout=str(args.timeout)+"s",
-            request_timeout=args.timeout
+            size=0
         )
         if not is_marc:
             fieldcardinality = fieldcardinalityresponse['aggregations']['type_count']['value']
@@ -235,9 +230,7 @@ def run():
         index=args.index,
         doc_type=args.type,
         body={},
-        size=0,
-        timeout=str(args.timeout)+"s",
-        request_timeout=args.timeout
+        size=0
     )['hits']['total']
 
     sortedstats = collections.OrderedDict(sorted(stats.items()))
