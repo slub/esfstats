@@ -192,6 +192,7 @@ def run():
             doc_type=args.type,
             body={"query": {"bool": {"must": [{"exists": {"field": fullpath}}]}}},
             size=0,
+            timeout=str(args.timeout)+"s",
             request_timeout=args.timeout
         )
         if not is_marc:
@@ -207,6 +208,7 @@ def run():
             doc_type=args.type,
             body=fieldcardinalityrequestbody,
             size=0,
+            timeout=str(args.timeout)+"s",
             request_timeout=args.timeout
         )
         fieldvaluecountresponse = es.search(
@@ -214,6 +216,7 @@ def run():
             doc_type=args.type,
             body=fieldvaluecountrequestbody,
             size=0,
+            timeout=str(args.timeout)+"s",
             request_timeout=args.timeout
         )
         if not is_marc:
@@ -233,6 +236,7 @@ def run():
         doc_type=args.type,
         body={},
         size=0,
+        timeout=str(args.timeout)+"s",
         request_timeout=args.timeout
     )['hits']['total']
 
