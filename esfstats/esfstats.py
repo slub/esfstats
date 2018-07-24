@@ -139,6 +139,8 @@ def run():
                                     help='hostname or IP address of the elasticsearch instance to use')
     optional_arguments.add_argument('-port', type=int, default=9200,
                                     help='port of the elasticsearch instance to use')
+    optional_arguments.add_argument('-timeout', type=int, default=10,
+                                    help='Elasticsearch timeout. Default is 10 seconds. Increase for larger datasets.')
     optional_arguments.add_argument('-marc', action="store_true", help='ignore MARC indicator, i.e., combine only MARC tag + MARC code (valid/applicable for input generated with help of xbib/marc (https://github.com/xbib/marc) or input MARC JSON records that follow this structure)')
     optional_arguments.add_argument('-csv-output', action="store_true",
                                     help='prints the output as pure CSV data (all values are quoted)',
@@ -189,7 +191,8 @@ def run():
             index=args.index,
             doc_type=args.type,
             body={"query": {"bool": {"must": [{"exists": {"field": fullpath}}]}}},
-            size=0
+            size=0,
+            request_timeout=args.timeout
         )
         if not is_marc:
             fullpathkeyword = fullpath + ".keyword"
@@ -203,13 +206,15 @@ def run():
             index=args.index,
             doc_type=args.type,
             body=fieldcardinalityrequestbody,
-            size=0
+            size=0,
+            request_timeout=args.timeout
         )
         fieldvaluecountresponse = es.search(
             index=args.index,
             doc_type=args.type,
             body=fieldvaluecountrequestbody,
-            size=0
+            size=0,
+            request_timeout=args.timeout
         )
         if not is_marc:
             fieldcardinality = fieldcardinalityresponse['aggregations']['type_count']['value']
@@ -227,7 +232,8 @@ def run():
         index=args.index,
         doc_type=args.type,
         body={},
-        size=0
+        size=0,
+        request_timeout=args.timeout
     )['hits']['total']
 
     sortedstats = collections.OrderedDict(sorted(stats.items()))
