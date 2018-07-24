@@ -178,6 +178,9 @@ def run():
                 marc_code = fullpath[-1:]
                 fullpath = marc_tag + ".*." + marc_code
                 is_marc = True
+            elif len(fullpath)==3 and fullpath[0:2]=="00":
+                # also analyse controllfields when '-marc' option is set
+                is_marc = False
             else:
                 # only analyse MARC tag + MARC code combinations (i.e. no upper paths) when '-marc' option is set
                 continue
