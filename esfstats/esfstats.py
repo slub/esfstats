@@ -139,6 +139,8 @@ def run():
                                     help='hostname or IP address of the elasticsearch instance to use')
     optional_arguments.add_argument('-port', type=int, default=9200,
                                     help='port of the elasticsearch instance to use')
+    optional_arguments.add_argument('-timeout', type=int, default=10,
+                                    help='Elasticsearch timeout. Default is 10 seconds. Increase for larger datasets.')
     optional_arguments.add_argument('-marc', action="store_true", help='ignore MARC indicator, i.e., combine only MARC tag + MARC code (valid/applicable for input generated with help of xbib/marc (https://github.com/xbib/marc) or input MARC JSON records that follow this structure)')
     optional_arguments.add_argument('-csv-output', action="store_true",
                                     help='prints the output as pure CSV data (all values are quoted)',
@@ -163,7 +165,8 @@ def run():
             else:
                 args.id=slashsplit[5]
 
-    es = Elasticsearch([{'host': args.host}], port=args.port)
+    es = Elasticsearch([{'host': args.host}], port=args.port,
+            timeout=args.timeout)
     mapping = es.indices.get_mapping(index=args.index, doc_type=args.type)[args.index]["mappings"][args.type]
     stats = dict()
     processed_paths = []
