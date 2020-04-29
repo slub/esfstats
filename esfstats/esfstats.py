@@ -4,8 +4,9 @@ import argparse
 import collections
 import csv
 import sys
+import urllib
+import elasticsearch
 
-from elasticsearch import Elasticsearch
 
 EXISTING = 'existing'
 EXISTING_PERCENTAGE = 'existing_percentage'
@@ -53,11 +54,14 @@ def is_marc_tag(s):
         return False
 
 
-def generate_field_statistics(statsmap, hitcount):
+def generate_field_statistics(statsmap, hitcount, version):
     field_statistics = []
 
     for key, value in statsmap:
-        fieldexistingcount = value[0]
+        if version < 7:
+            fieldexistingcount = value[0]
+        elif version >= 7:
+            fieldexistingcount = value[0]['value']
         fieldcardinality = value[1]
         fieldvaluecount = value[2]
 
@@ -104,6 +108,7 @@ def simple_text_print(field_statistics):
                                                                                  '"' + field_statistic[
                                                                                      FIELD_NAME] + '"'))
 
+
 def csv_print(field_statistics):
     header = get_header()
     with sys.stdout as csvfile:
@@ -113,12 +118,6 @@ def csv_print(field_statistics):
         for field_statistic in field_statistics:
             writer.writerow(field_statistic)
 
-def isint(num):
-    try: 
-        int(num)
-        return True
-    except:
-        return False
 
 def run():
     parser = argparse.ArgumentParser(prog='esfstats', description='return field statistics of an elasticsearch index',
@@ -127,18 +126,9 @@ def run():
     optional_arguments = parser._action_groups.pop()
 
     required_arguments = parser.add_argument_group('required arguments')
-    required_arguments.add_argument('-index', type=str, help='elasticsearch index to use')
-    required_arguments.add_argument('-type', type=str, help='elasticsearch index (document) type to use')
-    
-    
-    required_arguments_or = parser.add_argument_group('or use: arguments')
-    required_arguments_or.add_argument('-server',type=str,
-                                    help="use http://host:port/index/type/id?pretty. overwrites host/port/index/id/pretty")
+    required_arguments.add_argument('-server', type=str,
+                                    help="use http://host:port/index/type/")
 
-    optional_arguments.add_argument('-host', type=str, default='localhost',
-                                    help='hostname or IP address of the elasticsearch instance to use')
-    optional_arguments.add_argument('-port', type=int, default=9200,
-                                    help='port of the elasticsearch instance to use')
     optional_arguments.add_argument('-timeout', type=int, default=10,
                                     help='Elasticsearch timeout. Default is 10 seconds. Increase for larger datasets.')
     optional_arguments.add_argument('-marc', action="store_true", help='ignore MARC indicator, i.e., combine only MARC tag + MARC code (valid/applicable for input generated with help of xbib/marc (https://github.com/xbib/marc) or input MARC JSON records that follow this structure)')
@@ -147,27 +137,33 @@ def run():
                                     dest='csv_output')
 
     parser._action_groups.append(optional_arguments)
-
     args = parser.parse_args()
-    
-    if args.server:
-        slashsplit=args.server.split("/")
-        args.host=slashsplit[2].rsplit(":")[0]
-        if isint(args.server.split(":")[2].rsplit("/")[0]):
-            args.port=args.server.split(":")[2].split("/")[0]
-        args.index=args.server.split("/")[3]
-        if len(slashsplit)>4:
-            args.type=slashsplit[4]
-        if len(slashsplit)>5:
-            if "?pretty" in args.server:
-                args.pretty=True
-                args.id=slashsplit[5].rsplit("?")[0]
-            else:
-                args.id=slashsplit[5]
 
-    es = Elasticsearch([{'host': args.host}], port=args.port,
-            timeout=args.timeout)
-    mapping = es.indices.get_mapping(index=args.index, doc_type=args.type)[args.index]["mappings"][args.type]
+    srv = urllib.parse.urlparse(args.server)
+    host = srv.hostname
+    port = srv.port
+    splitpath = srv.path.split("/")
+    index = splitpath[1]
+    doc_type = splitpath[2]
+
+    es = elasticsearch.Elasticsearch(
+        [{
+          'host': host,
+          'port': port,
+          'max_retries': 10,
+          'retry_on_timeout': True,
+          'http_compress': True
+        }]
+        )
+    major_server_version = int(es.info()['version']['number'][0])
+    if major_server_version < 7:
+        try:
+            mapping = es.indices.get_mapping(index=index, doc_type=doc_type)[index]["mappings"][doc_type]
+        except KeyError:
+            sys.stderr.write("For an elasticsearch5/6 index, you need to specify a doc_type\n")
+            exit(-1)
+    elif major_server_version >= 7:
+        mapping = es.indices.get_mapping(index=index)[index]["mappings"]
     stats = dict()
     processed_paths = []
     path_list = [path_tuple[0] for path_tuple in traverse(mapping)]
@@ -181,7 +177,7 @@ def run():
                 marc_code = fullpath[-1:]
                 fullpath = marc_tag + ".*." + marc_code
                 is_marc = True
-            elif len(fullpath)==3 and fullpath[0:2]=="00":
+            elif len(fullpath) == 3 and fullpath[0:2] == "00":
                 # also analyse controllfields when '-marc' option is set
                 is_marc = False
             else:
@@ -192,10 +188,11 @@ def run():
             continue
         processed_paths.append(fullpath)
         fieldexistingresponse = es.search(
-            index=args.index,
-            doc_type=args.type,
-            body={"query": {"bool": {"must": [{"exists": {"field": fullpath}}]}}},
-            size=0
+            index=index,
+            doc_type=doc_type,
+            body={"query": {"exists": {"field": fullpath}}},
+            _source=False,
+            scroll='1s',
         )
         if not is_marc:
             fullpathkeyword = fullpath + ".keyword"
@@ -203,19 +200,21 @@ def run():
             fieldvaluecountrequestbody = {"aggs": {"types_count": {"value_count": {"field": fullpathkeyword}}}}
         else:
             script = "def values = new ArrayList(); for(def marcfield : params._source[params.marc_tag]) { if(marcfield instanceof String) { values.add(params.marc_code); } if(marcfield instanceof HashMap) { for(def marcfieldinds : marcfield.values()) { for(def marcfieldind : marcfieldinds) { if(marcfieldind.containsKey(params.marc_code)) { values.add(marcfieldind[params.marc_code]); } } } } } return values;"
-            fieldcardinalityrequestbody = {"aggs": {"marc_field_cardinality": {"filter": {"bool": {"must": {"exists": {"field": fullpath}}}}, "aggs": {"type_count": {"cardinality": {"script": {"source": script, "params": {"marc_tag": marc_tag, "marc_code": marc_code}, "lang": "painless"},"precision_threshold": 40000}}}}}}
+            fieldcardinalityrequestbody = {"aggs": {"marc_field_cardinality": {"filter": {"bool": {"must": {"exists": {"field": fullpath}}}}, "aggs": {"type_count": {"cardinality": {"script": {"source": script, "params": {"marc_tag": marc_tag, "marc_code": marc_code}, "lang": "painless"}, "precision_threshold": 40000}}}}}}
             fieldvaluecountrequestbody = {"aggs": {"marc_field_value_count": {"filter": {"bool": {"must": {"exists": {"field": fullpath}}}}, "aggs": {"types_count": {"value_count": {"script": {"source": script, "params": {"marc_tag": marc_tag, "marc_code": marc_code}, "lang": "painless"}}}}}}}
         fieldcardinalityresponse = es.search(
-            index=args.index,
-            doc_type=args.type,
+            index=index,
+            doc_type=doc_type,
             body=fieldcardinalityrequestbody,
-            size=0
+            _source=False,
+            scroll='1s',
         )
         fieldvaluecountresponse = es.search(
-            index=args.index,
-            doc_type=args.type,
+            index=index,
+            doc_type=doc_type,
             body=fieldvaluecountrequestbody,
-            size=0
+            _source=False,
+            scroll='1s',
         )
         if not is_marc:
             fieldcardinality = fieldcardinalityresponse['aggregations']['type_count']['value']
@@ -229,15 +228,18 @@ def run():
             fieldvaluecount
         )
 
-    hitcount = es.search(
-        index=args.index,
-        doc_type=args.type,
-        body={},
-        size=0
-    )['hits']['total']
-
+    if major_server_version >= 7:
+        index_stats = es.indices.stats(index)
+        hitcount = index_stats['_all']['primaries']['docs']['count']
+    elif major_server_version < 7:
+        hitcount = es.search(index=index,
+                             doc_type=doc_type,
+                             body={},
+                             _source=False,
+                             scroll='1s',
+                             )['hits']['total']
     sortedstats = collections.OrderedDict(sorted(stats.items()))
-    field_statistics = generate_field_statistics(sortedstats.items(), hitcount)
+    field_statistics = generate_field_statistics(sortedstats.items(), hitcount, major_server_version)
 
     if not args.csv_output:
         simple_text_print(field_statistics)
